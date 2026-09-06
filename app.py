@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -16,7 +14,6 @@ st.caption("Live Open-Meteo weather + external SOP matching. Open-Meteo needs no
 
 with st.sidebar:
     st.subheader("Session")
-    st.write("Groq:", "enabled" if os.getenv("GROQ_API_KEY") else "not configured")
     if st.button("Clear chat"):
         st.session_state.messages = []
         st.session_state.memory = {}
