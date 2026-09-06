@@ -1,0 +1,224 @@
+[
+  {
+    "id": "SOP-THUNDERSTORM-001",
+    "title": "Thunderstorm risk for outdoor activity",
+    "category": "general",
+    "severity": "critical",
+    "priority": 100,
+    "conditions": {
+      "all": [
+        {"source": "intent", "field": "is_outdoor_safety_question", "operator": "equals", "value": true}
+      ],
+      "any": [
+        {"source": "weather", "field": "weather_code", "operator": "in", "value": [95, 96, 99]}
+      ]
+    },
+    "guidance": "Do not recommend starting or continuing the outdoor activity. Advise the user to move indoors and wait until storms have fully passed.",
+    "facts_to_mention": ["weather_code", "weather_description", "precipitation", "wind_gusts_10m"]
+  },
+  {
+    "id": "SOP-WIND-CYCLING-001",
+    "title": "Strong wind risk for cycling or two-wheelers",
+    "category": "travel",
+    "severity": "high",
+    "priority": 90,
+    "conditions": {
+      "all": [
+        {"source": "intent", "field": "activity", "operator": "in", "value": ["cycling", "bike", "bicycle", "two_wheeler", "scooter", "motorbike"]}
+      ],
+      "any": [
+        {"source": "weather", "field": "wind_speed_10m", "operator": "gte", "value": 40},
+        {"source": "weather", "field": "wind_gusts_10m", "operator": "gte", "value": 55}
+      ]
+    },
+    "guidance": "Treat the trip as a safety risk, not just discomfort. Postpone the ride or use enclosed transport.",
+    "facts_to_mention": ["wind_speed_10m", "wind_gusts_10m"]
+  },
+  {
+    "id": "SOP-SNOW-TRAVEL-001",
+    "title": "Snow or icy conditions for travel",
+    "category": "travel",
+    "severity": "high",
+    "priority": 88,
+    "conditions": {
+      "all": [
+        {"source": "intent", "field": "category", "operator": "in", "value": ["travel", "commute"]}
+      ],
+      "any": [
+        {"source": "weather", "field": "snowfall", "operator": "gte", "value": 0.5},
+        {"source": "weather", "field": "weather_code", "operator": "in", "value": [71, 73, 75, 77, 85, 86]}
+      ]
+    },
+    "guidance": "Expect slippery surfaces and visibility problems. Delay non-essential travel or choose the safest available route.",
+    "facts_to_mention": ["snowfall", "weather_code", "weather_description", "temperature_2m"]
+  },
+  {
+    "id": "SOP-HEAT-EXERCISE-001",
+    "title": "High heat during outdoor exercise",
+    "category": "outdoor_exercise",
+    "severity": "high",
+    "priority": 82,
+    "conditions": {
+      "all": [
+        {"source": "intent", "field": "category", "operator": "in", "value": ["outdoor_exercise", "sports"]}
+      ],
+      "any": [
+        {"source": "weather", "field": "temperature_2m", "operator": "gte", "value": 35},
+        {"source": "weather", "field": "apparent_temperature", "operator": "gte", "value": 38}
+      ]
+    },
+    "guidance": "Avoid hard outdoor exercise. Reschedule to a cooler time, reduce intensity, and carry water.",
+    "facts_to_mention": ["temperature_2m", "apparent_temperature", "relative_humidity_2m"]
+  },
+  {
+    "id": "SOP-HEAT-VULNERABLE-001",
+    "title": "Heat risk for children, older adults, or pets",
+    "category": "vulnerable_groups",
+    "severity": "high",
+    "priority": 80,
+    "conditions": {
+      "all": [
+        {"source": "intent", "field": "vulnerable_group", "operator": "in", "value": ["child", "children", "elderly", "older_adult", "pet", "dog", "cat"]}
+      ],
+      "any": [
+        {"source": "weather", "field": "temperature_2m", "operator": "gte", "value": 32},
+        {"source": "weather", "field": "apparent_temperature", "operator": "gte", "value": 35}
+      ]
+    },
+    "guidance": "Avoid prolonged outdoor exposure and choose shaded, cooler conditions. Keep the plan centered on the vulnerable person or animal.",
+    "facts_to_mention": ["temperature_2m", "apparent_temperature", "relative_humidity_2m"]
+  },
+  {
+    "id": "SOP-RAIN-OUTDOOR-001",
+    "title": "Active rain or high rain chance for outdoor plans",
+    "category": "general",
+    "severity": "moderate",
+    "priority": 72,
+    "conditions": {
+      "all": [
+        {"source": "intent", "field": "is_outdoor_safety_question", "operator": "equals", "value": true}
+      ],
+      "any": [
+        {"source": "weather", "field": "precipitation", "operator": "gte", "value": 1.0},
+        {"source": "weather", "field": "precipitation_probability", "operator": "gte", "value": 60}
+      ]
+    },
+    "guidance": "Outdoor conditions may be poor. Postpone if the activity depends on dry ground or clear visibility.",
+    "facts_to_mention": ["precipitation", "precipitation_probability", "weather_description"]
+  },
+  {
+    "id": "SOP-RAIN-TRAVEL-001",
+    "title": "High rain chance for travel",
+    "category": "travel",
+    "severity": "moderate",
+    "priority": 76,
+    "conditions": {
+      "all": [
+        {"source": "intent", "field": "category", "operator": "in", "value": ["travel", "commute"]}
+      ],
+      "any": [
+        {"source": "weather", "field": "precipitation_probability", "operator": "gte", "value": 70},
+        {"source": "weather", "field": "precipitation", "operator": "gte", "value": 2.0}
+      ]
+    },
+    "guidance": "Expect possible delays and reduced visibility. Check local alerts and leave extra time if travel is necessary.",
+    "facts_to_mention": ["precipitation_probability", "precipitation", "weather_description"]
+  },
+  {
+    "id": "SOP-UV-EXERCISE-001",
+    "title": "Very high UV during outdoor activity",
+    "category": "outdoor_exercise",
+    "severity": "moderate",
+    "priority": 65,
+    "conditions": {
+      "all": [
+        {"source": "intent", "field": "is_outdoor_safety_question", "operator": "equals", "value": true},
+        {"source": "weather", "field": "is_day", "operator": "equals", "value": 1}
+      ],
+      "any": [
+        {"source": "weather", "field": "uv_index", "operator": "gte", "value": 8}
+      ]
+    },
+    "guidance": "Avoid unprotected outdoor activity during peak sun. Use shade, sunscreen, a hat, and a lower-UV time window.",
+    "facts_to_mention": ["uv_index", "is_day", "temperature_2m"]
+  },
+  {
+    "id": "SOP-WIND-TRAVEL-001",
+    "title": "Gusty wind affecting travel",
+    "category": "travel",
+    "severity": "moderate",
+    "priority": 60,
+    "conditions": {
+      "all": [
+        {"source": "intent", "field": "category", "operator": "in", "value": ["travel", "commute"]}
+      ],
+      "any": [
+        {"source": "weather", "field": "wind_gusts_10m", "operator": "gte", "value": 50}
+      ]
+    },
+    "guidance": "Gusts can affect exposed roads and open areas. Allow extra time and avoid exposed routes where possible.",
+    "facts_to_mention": ["wind_gusts_10m", "wind_speed_10m"]
+  },
+  {
+    "id": "SOP-COLD-OUTDOOR-001",
+    "title": "Cold conditions for outdoor plans",
+    "category": "general",
+    "severity": "moderate",
+    "priority": 55,
+    "conditions": {
+      "all": [
+        {"source": "intent", "field": "is_outdoor_safety_question", "operator": "equals", "value": true}
+      ],
+      "any": [
+        {"source": "weather", "field": "temperature_2m", "operator": "lte", "value": 5},
+        {"source": "weather", "field": "apparent_temperature", "operator": "lte", "value": 2}
+      ]
+    },
+    "guidance": "Shorten exposure, dress warmly, and reconsider long outdoor activity if the user is not prepared for cold.",
+    "facts_to_mention": ["temperature_2m", "apparent_temperature", "wind_speed_10m"]
+  },
+  {
+    "id": "SOP-PET-HEAT-001",
+    "title": "Warm weather caution for pets",
+    "category": "vulnerable_groups",
+    "severity": "moderate",
+    "priority": 50,
+    "conditions": {
+      "all": [
+        {"source": "intent", "field": "vulnerable_group", "operator": "in", "value": ["pet", "dog", "cat"]},
+        {"source": "weather", "field": "temperature_2m", "operator": "gte", "value": 28}
+      ]
+    },
+    "guidance": "Keep the outing shorter, use shade and water, and avoid hot pavement. Move the walk to a cooler part of the day.",
+    "facts_to_mention": ["temperature_2m", "apparent_temperature"]
+  },
+  {
+    "id": "SOP-EXERCISE-FAIR-001",
+    "title": "Routine outdoor exercise when no stronger weather risk applies",
+    "category": "outdoor_exercise",
+    "severity": "low",
+    "priority": 25,
+    "conditions": {
+      "all": [
+        {"source": "intent", "field": "category", "operator": "in", "value": ["outdoor_exercise", "sports"]}
+      ]
+    },
+    "guidance": "Outdoor exercise looks reasonable based on the available weather facts. Stay aware of local conditions and use normal precautions for hydration, visibility, and traffic.",
+    "facts_to_mention": ["temperature_2m", "precipitation", "precipitation_probability", "wind_speed_10m", "uv_index", "weather_description"]
+  },
+  {
+    "id": "SOP-PICNIC-COMFORT-001",
+    "title": "Fuzzy picnic or park comfort check",
+    "category": "leisure",
+    "severity": "low",
+    "priority": 20,
+    "conditions": {
+      "all": [
+        {"source": "intent", "field": "question_type", "operator": "equals", "value": "comfort_check"},
+        {"source": "intent", "field": "category", "operator": "in", "value": ["leisure", "vulnerable_groups"]}
+      ]
+    },
+    "guidance": "This is a comfort-focused recommendation rather than a safety warning. The outing is reasonable if the user accepts the listed conditions, because no stronger weather safety SOP outranks this one.",
+    "facts_to_mention": ["temperature_2m", "precipitation", "precipitation_probability", "wind_speed_10m", "weather_description"]
+  }
+]

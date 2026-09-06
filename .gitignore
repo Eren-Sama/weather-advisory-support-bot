@@ -1,0 +1,6 @@
+.env
+__pycache__/
+.streamlit/
+.venv/
+*.pyc
+BrainWave Intern Assignment.pdf
