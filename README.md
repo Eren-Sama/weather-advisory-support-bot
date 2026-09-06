@@ -9,7 +9,7 @@ This project implements the BrainWave internship assignment: a small LangGraph c
 3. Resolves the location with Open-Meteo geocoding.
 4. Fetches live weather from Open-Meteo forecast. For follow-ups such as "this evening" or "this afternoon", it uses the matching hourly forecast slice for today.
 5. Loads SOPs from `data/sops.json`.
-6. Selects the highest-severity matching SOP using deterministic rule checks.
+6. Selects the highest-severity matching SOP using deterministic rule checks, with priority used as the tie-breaker.
 7. Uses Groq only for intent extraction and optional wording polish when an API key is available. Weather facts and SOP choice are controlled by code.
 
 If location lookup, weather fetching, or SOP matching fails, the bot says that honestly instead of guessing.
@@ -52,6 +52,12 @@ match_sop
 
 The failure paths are separate nodes so the reviewer can see exactly where the bot stops and why.
 
+## Design Principle
+
+The LLM helps with language, not policy decisions.
+
+Intent extraction can use Groq when available, but weather values come from Open-Meteo and SOP matching is deterministic. This keeps the safety decision traceable and makes policy changes possible through `data/sops.json` without changing the graph.
+
 ## SOP Design
 
 SOPs live in `data/sops.json`. Each SOP has:
@@ -75,7 +81,7 @@ The included SOPs cover:
 - leisure and picnic comfort
 - general severe weather
 
-There are 13 SOPs with multiple severity levels: low, moderate, high, and critical. `SOP-PICNIC-COMFORT-001` is intentionally fuzzy/non-numeric: it handles "nice day for a picnic/park/outdoor lunch" style questions as a comfort check, and stronger safety SOPs outrank it when dangerous weather is present. `SOP-EXERCISE-FAIR-001` covers ordinary outdoor exercise only when no stronger risk SOP outranks it, so common cycling/running questions still get a traceable policy answer.
+The current policy file contains 13 SOPs across four severity levels: low, moderate, high, and critical. `SOP-PICNIC-COMFORT-001` is intentionally a comfort-focused rule rather than a numeric weather-threshold rule: it handles "nice day for a picnic/park/outdoor lunch" style questions as a comfort check, and stronger safety SOPs outrank it when dangerous weather is present. `SOP-EXERCISE-FAIR-001` covers ordinary outdoor exercise only when no stronger risk SOP outranks it, so common cycling/running questions still get a traceable policy answer.
 
 When more than one SOP matches, the bot chooses the highest severity, then highest priority. I chose this because it is easy to explain and safer than returning a low-severity comfort answer when a high-severity safety rule also matches.
 
@@ -88,7 +94,7 @@ Weather data comes from Open-Meteo:
 
 The forecast request explicitly asks for current fields and hourly fields. For normal "today/current" questions, hourly `uv_index` and `precipitation_probability` are copied from the nearest current hour. For "this morning", "this afternoon", and "this evening", the bot uses the matching hourly forecast slice and then re-runs SOP matching.
 
-Groq is not allowed to invent weather facts. Final answers are first composed deterministically from:
+Groq is not used as the source of weather facts. Final answers are first composed deterministically from:
 
 - selected SOP
 - exact weather facts returned by Open-Meteo
