@@ -184,6 +184,25 @@ def run_policy_engine_tests(base_weather: dict[str, Any]) -> bool:
         )
     )
 
+    selected_severity_conflict, _ = select_sop(
+        cycling_intent,
+        {
+            **base_weather,
+            "temperature_2m": 36,
+            "apparent_temperature": 37,
+            "precipitation_probability": 80,
+            "precipitation": 0,
+        },
+        sops,
+    )
+    checks.append(
+        (
+            "policy severity conflict chooses high heat over moderate rain",
+            selected_severity_conflict is not None and selected_severity_conflict["id"] == "SOP-HEAT-EXERCISE-001",
+            "When high heat, moderate rain, and low exercise SOPs all match, the high-severity heat SOP should win.",
+        )
+    )
+
     selected_travel, _ = select_sop(
         travel_intent,
         {**base_weather, "precipitation_probability": 70, "precipitation": 0},
@@ -194,6 +213,39 @@ def run_policy_engine_tests(base_weather: dict[str, Any]) -> bool:
             "policy travel rain threshold selects travel SOP",
             selected_travel is not None and selected_travel["id"] == "SOP-RAIN-TRAVEL-001",
             "At the travel rain threshold, the travel-specific rain SOP should outrank general rain guidance.",
+        )
+    )
+
+    priority_tie_sops = [
+        {
+            "id": "SOP-TEST-LOW-PRIORITY",
+            "title": "Lower priority test SOP",
+            "category": "test",
+            "severity": "moderate",
+            "priority": 10,
+            "conditions": {"all": [{"source": "intent", "field": "category", "operator": "equals", "value": "travel"}]},
+            "guidance": "Lower priority guidance.",
+            "facts_to_mention": [],
+        },
+        {
+            "id": "SOP-TEST-HIGH-PRIORITY",
+            "title": "Higher priority test SOP",
+            "category": "test",
+            "severity": "moderate",
+            "priority": 20,
+            "conditions": {"all": [{"source": "intent", "field": "category", "operator": "equals", "value": "travel"}]},
+            "guidance": "Higher priority guidance.",
+            "facts_to_mention": [],
+        },
+    ]
+    selected_priority_tie, priority_matches = select_sop(travel_intent, base_weather, priority_tie_sops)
+    checks.append(
+        (
+            "policy priority tie chooses higher priority",
+            selected_priority_tie is not None
+            and selected_priority_tie["id"] == "SOP-TEST-HIGH-PRIORITY"
+            and len(priority_matches) == 2,
+            "When two matching SOPs have the same severity, the higher-priority SOP should win.",
         )
     )
 
