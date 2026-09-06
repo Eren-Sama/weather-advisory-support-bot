@@ -8,6 +8,7 @@ from typing import Any
 os.environ["USE_LLM"] = "0"
 
 from src.graph import ask_bot
+from src.sop_matcher import load_sops, matched_sop_conditions, select_sop
 from src.weather import Location, OpenMeteoClient, WeatherClientError
 
 
@@ -46,6 +47,20 @@ class FakeWeatherClient:
         return facts
 
 
+def find_sop(sops: list[dict[str, Any]], sop_id: str) -> dict[str, Any]:
+    return next(sop for sop in sops if sop["id"] == sop_id)
+
+
+def sop_matches(sop: dict[str, Any], intent: dict[str, Any], weather: dict[str, Any]) -> bool:
+    return matched_sop_conditions(sop, intent, weather) is not None
+
+
+def print_policy_result(name: str, passed: bool, check: str) -> bool:
+    print(f"\n{name}: {'PASS' if passed else 'FAIL'}")
+    print(f"Check: {check}")
+    return passed
+
+
 def run_case(case: EvalCase) -> tuple[bool, str]:
     client = FakeWeatherClient(case.weather, fail_weather=case.should_fail_weather)
     result = ask_bot(case.user_message, weather_client=client)
@@ -78,6 +93,116 @@ def run_low_risk_postpone_follow_up(weather: dict[str, Any]) -> tuple[bool, str]
     ), answer
 
 
+def run_policy_engine_tests(base_weather: dict[str, Any]) -> bool:
+    sops = load_sops()
+    cycling_intent = {
+        "activity": "cycling",
+        "category": "outdoor_exercise",
+        "question_type": "safety_check",
+        "is_outdoor_safety_question": True,
+    }
+    travel_intent = {
+        "activity": "cycling",
+        "category": "travel",
+        "question_type": "safety_check",
+        "is_outdoor_safety_question": True,
+    }
+
+    wind_sop = find_sop(sops, "SOP-WIND-CYCLING-001")
+    uv_sop = find_sop(sops, "SOP-UV-EXERCISE-001")
+    rain_sop = find_sop(sops, "SOP-RAIN-OUTDOOR-001")
+
+    checks = [
+        (
+            "policy wind speed threshold excludes 39.9",
+            not sop_matches(wind_sop, cycling_intent, {**base_weather, "wind_speed_10m": 39.9, "wind_gusts_10m": 54.9}),
+            "Cycling wind SOP should not match just below both wind thresholds.",
+        ),
+        (
+            "policy wind speed threshold includes 40",
+            sop_matches(wind_sop, cycling_intent, {**base_weather, "wind_speed_10m": 40, "wind_gusts_10m": 20}),
+            "Cycling wind SOP should match at wind_speed_10m >= 40.",
+        ),
+        (
+            "policy wind gust threshold excludes 54.9",
+            not sop_matches(wind_sop, cycling_intent, {**base_weather, "wind_speed_10m": 20, "wind_gusts_10m": 54.9}),
+            "Cycling wind SOP should not match below wind_gusts_10m 55.",
+        ),
+        (
+            "policy wind gust threshold includes 55",
+            sop_matches(wind_sop, cycling_intent, {**base_weather, "wind_speed_10m": 20, "wind_gusts_10m": 55}),
+            "Cycling wind SOP should match at wind_gusts_10m >= 55.",
+        ),
+        (
+            "policy UV threshold excludes 7.9",
+            not sop_matches(uv_sop, cycling_intent, {**base_weather, "uv_index": 7.9, "is_day": 1}),
+            "UV SOP should not match below uv_index 8.",
+        ),
+        (
+            "policy UV threshold includes 8",
+            sop_matches(uv_sop, cycling_intent, {**base_weather, "uv_index": 8, "is_day": 1}),
+            "UV SOP should match at uv_index >= 8 during daylight.",
+        ),
+        (
+            "policy rain probability threshold excludes 59",
+            not sop_matches(rain_sop, cycling_intent, {**base_weather, "precipitation_probability": 59, "precipitation": 0}),
+            "Outdoor rain SOP should not match below 60% rain probability when precipitation is also low.",
+        ),
+        (
+            "policy rain probability threshold includes 60",
+            sop_matches(rain_sop, cycling_intent, {**base_weather, "precipitation_probability": 60, "precipitation": 0}),
+            "Outdoor rain SOP should match at precipitation_probability >= 60.",
+        ),
+    ]
+
+    selected, matches = select_sop(
+        cycling_intent,
+        {
+            **base_weather,
+            "weather_code": 95,
+            "weather_description": "thunderstorm",
+            "wind_speed_10m": 45,
+            "wind_gusts_10m": 60,
+            "temperature_2m": 38,
+            "apparent_temperature": 41,
+            "uv_index": 9,
+            "precipitation_probability": 90,
+            "precipitation": 2,
+            "is_day": 1,
+        },
+        sops,
+    )
+    checks.append(
+        (
+            "policy multi-match chooses critical thunderstorm",
+            selected is not None
+            and selected["id"] == "SOP-THUNDERSTORM-001"
+            and len(matches) > 1,
+            "When thunderstorm, wind, heat, UV, and rain all match, critical thunderstorm should win.",
+        )
+    )
+
+    selected_travel, _ = select_sop(
+        travel_intent,
+        {**base_weather, "precipitation_probability": 70, "precipitation": 0},
+        sops,
+    )
+    checks.append(
+        (
+            "policy travel rain threshold selects travel SOP",
+            selected_travel is not None and selected_travel["id"] == "SOP-RAIN-TRAVEL-001",
+            "At the travel rain threshold, the travel-specific rain SOP should outrank general rain guidance.",
+        )
+    )
+
+    print("\nDeterministic policy engine tests")
+    print("=" * 42)
+    all_passed = True
+    for name, passed, check in checks:
+        all_passed = print_policy_result(name, passed, check) and all_passed
+    return all_passed
+
+
 def main() -> None:
     base_weather = {
         "temperature_2m": 24,
@@ -94,6 +219,8 @@ def main() -> None:
         "uv_index": 4,
         "weather_description": "partly cloudy",
     }
+
+    all_passed = run_policy_engine_tests(base_weather)
 
     cases = [
         EvalCase(
@@ -173,7 +300,6 @@ def main() -> None:
 
     print("Weather Advisory Support Bot evals")
     print("=" * 42)
-    all_passed = True
     for case in cases:
         passed, answer = run_case(case)
         all_passed = all_passed and passed

@@ -1,6 +1,6 @@
 # Weather-Advisory Support Bot
 
-Student-style implementation of the BrainWave internship assignment: a small LangGraph chatbot that answers outdoor safety questions using live Open-Meteo weather and editable SOP rules.
+This project implements the BrainWave internship assignment: a small LangGraph chatbot that answers outdoor safety questions using live Open-Meteo weather and editable SOP rules.
 
 ## What It Does
 
@@ -143,6 +143,8 @@ python evals.py
 
 The eval suite covers:
 
+- direct deterministic policy-engine tests for SOP thresholds
+- direct multi-match policy tests for SOP priority and severity ranking
 - direct SOP match for cycling wind
 - direct SOP match for vulnerable-group heat
 - paraphrased travel/rain question
@@ -164,9 +166,9 @@ set RUN_LIVE_EVAL=1
 python evals.py
 ```
 
-Live severe-weather evals are tricky because weather changes. The deterministic fake-weather cases are stable. The optional live case is useful for review, but it should be interpreted as "does the bot ground its answer in current API facts?" rather than "does Bhopal always have severe weather?"
+The deterministic fake-weather tests are the correctness tests. The optional live check is only an integration smoke test because real weather changes. It is useful for confirming that Open-Meteo integration works and that the bot grounds its answer in current API facts, but it should not be treated as a stable policy-correctness test.
 
-## Adding An 11th SOP
+## Adding Another SOP
 
 Add a new object to `data/sops.json`. For example:
 
