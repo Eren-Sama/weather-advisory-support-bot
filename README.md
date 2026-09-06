@@ -10,7 +10,7 @@ This project implements the BrainWave internship assignment: a small LangGraph c
 4. Fetches live weather from Open-Meteo forecast. For follow-ups such as "this evening" or "this afternoon", it uses the matching hourly forecast slice for today.
 5. Loads SOPs from `data/sops.json`.
 6. Selects the highest-severity matching SOP using deterministic rule checks.
-7. Uses Groq only for intent extraction and final wording when an API key is available. Weather facts and SOP choice are controlled by code.
+7. Uses Groq only for intent extraction and optional wording polish when an API key is available. Weather facts and SOP choice are controlled by code.
 
 If location lookup, weather fetching, or SOP matching fails, the bot says that honestly instead of guessing.
 
@@ -88,14 +88,15 @@ Weather data comes from Open-Meteo:
 
 The forecast request explicitly asks for current fields and hourly fields. For normal "today/current" questions, hourly `uv_index` and `precipitation_probability` are copied from the nearest current hour. For "this morning", "this afternoon", and "this evening", the bot uses the matching hourly forecast slice and then re-runs SOP matching.
 
-Groq is not allowed to invent weather facts. Final answers are composed from:
+Groq is not allowed to invent weather facts. Final answers are first composed deterministically from:
 
 - selected SOP
 - exact weather facts returned by Open-Meteo
 - exact SOP condition that triggered the match, such as `precipitation_probability >= 60`
-- deterministic response fallback
 
-If the LLM adds an unapproved number, the code falls back to the deterministic template response. Evals run with `USE_LLM=0` so the policy engine is tested deterministically even if a Groq key exists.
+When Groq is available, it can polish that deterministic answer for readability. The code only accepts the polished answer if it still includes the selected SOP, preserves the required fact values, avoids unapproved numbers, and does not add unsupported hazards such as flooding or official alerts. Otherwise, the deterministic answer is returned.
+
+The LLM intent output is also validated before use. Enum-like fields such as `category`, `activity`, `question_type`, `time_hint`, and `vulnerable_group` must be from allowed values. Unexpected values are ignored so the rule-based intent fallback can still drive SOP matching. Evals run with `USE_LLM=0` so the policy engine is tested deterministically even if a Groq key exists.
 
 ## Setup
 
@@ -145,6 +146,9 @@ The eval suite covers:
 
 - direct deterministic policy-engine tests for SOP thresholds
 - direct multi-match policy tests for SOP priority and severity ranking
+- deterministic intent fallback for scooter/two-wheeler wording
+- validation of invalid LLM intent values
+- rejection of unsafe LLM polishing that adds unsupported hazards
 - direct SOP match for cycling wind
 - direct SOP match for vulnerable-group heat
 - paraphrased travel/rain question

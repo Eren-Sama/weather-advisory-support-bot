@@ -7,7 +7,9 @@ from typing import Any
 
 os.environ["USE_LLM"] = "0"
 
+import src.intent as intent_module
 from src.graph import ask_bot
+from src.response import _llm_response_is_safe
 from src.sop_matcher import load_sops, matched_sop_conditions, select_sop
 from src.weather import Location, OpenMeteoClient, WeatherClientError
 
@@ -203,6 +205,81 @@ def run_policy_engine_tests(base_weather: dict[str, Any]) -> bool:
     return all_passed
 
 
+def run_intent_and_llm_guard_tests(base_weather: dict[str, Any]) -> bool:
+    print("\nIntent and LLM guardrail tests")
+    print("=" * 42)
+    all_passed = True
+
+    scooter_result = ask_bot(
+        "Is it safe to take my scooter in Bhopal today?",
+        weather_client=FakeWeatherClient({**base_weather, "wind_gusts_10m": 55}),
+    )
+    scooter_passed = (
+        scooter_result["intent"].get("activity") == "scooter"
+        and scooter_result["intent"].get("category") == "travel"
+        and "SOP-WIND-CYCLING-001" in scooter_result["final_response"]
+    )
+    all_passed = print_policy_result(
+        "intent fallback maps scooter to supported SOP activity",
+        scooter_passed,
+        "Without Groq, a scooter question should map to travel/scooter and trigger the two-wheeler wind SOP.",
+    ) and all_passed
+
+    original_extract_with_llm = intent_module._extract_with_llm
+    try:
+        intent_module._extract_with_llm = lambda _message, _memory: {
+            "activity": "spaceship",
+            "category": "banana",
+            "question_type": "prophecy",
+            "vulnerable_group": "dragon",
+            "time_hint": "next_century",
+            "is_outdoor_safety_question": "yes",
+        }
+        intent = intent_module.extract_intent("Is it safe to take my scooter in Bhopal today?", {})
+    finally:
+        intent_module._extract_with_llm = original_extract_with_llm
+
+    invalid_llm_passed = (
+        intent.get("activity") == "scooter"
+        and intent.get("category") == "travel"
+        and intent.get("question_type") == "safety_check"
+        and intent.get("is_outdoor_safety_question") is True
+    )
+    all_passed = print_policy_result(
+        "invalid LLM intent values fall back to rules",
+        invalid_llm_passed,
+        "Unexpected enum-like values from the LLM should not override deterministic intent extraction.",
+    ) and all_passed
+
+    fallback_answer = (
+        "**Bike commute is possible, but only with the precautions in the matched SOP.**\n\n"
+        "**Why:** The current rain probability is **78%**, meeting the SOP threshold of **70%** in Bhopal. "
+        "This matches **SOP-RAIN-TRAVEL-001 - High rain chance for travel** (**moderate severity**).\n\n"
+        "**Location:** Bhopal, Madhya Pradesh, India\n\n"
+        "**Current conditions**\n"
+        "- Rain probability: 78%\n"
+        "- Current precipitation: 0.3 mm\n"
+        "- Condition: light drizzle\n\n"
+        "**Recommendation:** Expect possible delays and reduced visibility. Check local alerts and leave extra time if travel is necessary."
+    )
+    unsafe_polish = fallback_answer + "\n\nThe road is likely flooded, so avoid driving."
+    llm_guard_passed = not _llm_response_is_safe(
+        unsafe_polish,
+        fallback_answer,
+        {"location_name": "Bhopal, Madhya Pradesh, India"},
+        {"id": "SOP-RAIN-TRAVEL-001"},
+        {"precipitation_probability": 78, "precipitation": 0.3, "weather_description": "light drizzle"},
+        [{"source": "weather", "field": "precipitation_probability", "actual": 78, "expected": 70}],
+    )
+    all_passed = print_policy_result(
+        "LLM polish cannot add unsupported hazards",
+        llm_guard_passed,
+        "A polished answer that adds a non-grounded flooding claim should be rejected in favor of the deterministic answer.",
+    ) and all_passed
+
+    return all_passed
+
+
 def main() -> None:
     base_weather = {
         "temperature_2m": 24,
@@ -221,6 +298,7 @@ def main() -> None:
     }
 
     all_passed = run_policy_engine_tests(base_weather)
+    all_passed = run_intent_and_llm_guard_tests(base_weather) and all_passed
 
     cases = [
         EvalCase(

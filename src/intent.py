@@ -17,12 +17,35 @@ DEFAULT_INTENT = {
     "is_outdoor_safety_question": True,
 }
 
+ALLOWED_CATEGORIES = {"general", "outdoor_exercise", "travel", "commute", "leisure", "sports", "vulnerable_groups"}
+ALLOWED_QUESTION_TYPES = {"safety_check", "comfort_check"}
+ALLOWED_TIME_HINTS = {"today", "this_morning", "this_afternoon", "this_evening"}
+ALLOWED_ACTIVITIES = {
+    "outdoor_activity",
+    "cycling",
+    "bike",
+    "bicycle",
+    "two_wheeler",
+    "scooter",
+    "motorbike",
+    "running",
+    "walking",
+    "hiking",
+    "picnic",
+    "park",
+    "commute",
+    "travel",
+    "dog_walk",
+    "outdoor_meal",
+}
+ALLOWED_VULNERABLE_GROUPS = {"child", "children", "elderly", "older_adult", "pet", "dog", "cat"}
+
 
 def extract_intent(user_message: str, memory: dict[str, Any]) -> dict[str, Any]:
     heuristic_intent = _extract_with_rules(user_message, memory)
     llm_intent = {}
     if not heuristic_intent.get("contains_prompt_injection"):
-        llm_intent = _extract_with_llm(user_message, memory)
+        llm_intent = _validate_llm_intent(_extract_with_llm(user_message, memory))
 
     explicit_intent: dict[str, Any] = {}
     explicit_intent.update({k: v for k, v in llm_intent.items() if v not in (None, "", [])})
@@ -92,6 +115,9 @@ def _extract_with_rules(user_message: str, memory: dict[str, Any]) -> dict[str, 
 
     activity_patterns = {
         "cycling": ["cycle", "cycling", "bike", "bike ride", "bicycle", "bike to work", "riding my bike", "ride my bike"],
+        "two_wheeler": ["two-wheeler", "two wheeler"],
+        "scooter": ["scooter"],
+        "motorbike": ["motorbike", "motor bike", "motorcycle"],
         "running": ["run", "jog", "marathon"],
         "walking": ["walk", "walking"],
         "hiking": ["hike", "hiking", "trek"],
@@ -108,7 +134,7 @@ def _extract_with_rules(user_message: str, memory: dict[str, Any]) -> dict[str, 
 
     if any(word in text for word in ["cycle", "cycling", "bicycle", "bike", "ride", "run", "jog", "hike", "exercise", "sport"]):
         intent["category"] = "outdoor_exercise"
-    if any(word in text for word in ["commute", "travel", "drive", "trip", "airport", "train", "two-wheeler", "scooter", "office", "work"]):
+    if any(word in text for word in ["commute", "travel", "drive", "trip", "airport", "train", "two-wheeler", "two wheeler", "scooter", "motorbike", "motor bike", "motorcycle", "office", "work"]):
         intent["category"] = "travel"
     if any(word in text for word in ["picnic", "park", "playground", "outing", "lunch outside", "sitting outside", "having lunch", "pleasant for being outside"]):
         intent["category"] = "leisure"
@@ -146,6 +172,28 @@ def _extract_with_rules(user_message: str, memory: dict[str, Any]) -> dict[str, 
         intent["contains_prompt_injection"] = True
 
     return intent
+
+
+def _validate_llm_intent(intent: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(intent, dict):
+        return {}
+
+    validated: dict[str, Any] = {}
+    if isinstance(intent.get("location"), str):
+        validated["location"] = intent["location"]
+    if intent.get("activity") in ALLOWED_ACTIVITIES:
+        validated["activity"] = intent["activity"]
+    if intent.get("category") in ALLOWED_CATEGORIES:
+        validated["category"] = intent["category"]
+    if intent.get("question_type") in ALLOWED_QUESTION_TYPES:
+        validated["question_type"] = intent["question_type"]
+    if intent.get("vulnerable_group") in ALLOWED_VULNERABLE_GROUPS:
+        validated["vulnerable_group"] = intent["vulnerable_group"]
+    if intent.get("time_hint") in ALLOWED_TIME_HINTS:
+        validated["time_hint"] = intent["time_hint"]
+    if isinstance(intent.get("is_outdoor_safety_question"), bool):
+        validated["is_outdoor_safety_question"] = intent["is_outdoor_safety_question"]
+    return validated
 
 
 def _find_vulnerable_group(text: str) -> str | None:
